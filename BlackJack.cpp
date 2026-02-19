@@ -406,7 +406,7 @@ struct Game {
         else return STAND;
     }
 
-    void PlaceBet(int hand = -1)
+    void PlaceBetView(int hand = -1)
     {
         system("cls");
         if(hand == -1) hand = player.using_hand;
@@ -432,7 +432,7 @@ struct Game {
         player.hand[hand].open = true;
     }
 
-    void OpenHands()
+    void OpenHandsView()
     {
         SleepFor(300); 
         cout << "How many hands you bet (Max 5)\n";
@@ -453,10 +453,10 @@ struct Game {
 
     void GameLoop()
     { 
-        OpenHands();
+        OpenHandsView();
 
         for(int i = 0; i < player.open_hands; i++)
-            PlaceBet(i);
+            PlaceBetView(i);
         
         for(int i = 0; i < 2; i++)
         {
@@ -613,7 +613,7 @@ int main() {
     {
         system("cls");
         Game game{original_deck};
-        game.deck = SlowShuffleDeck(game.deck);
+        game.deck = ShuffleDeck(game.deck);
         game.player = player;
 
         try
