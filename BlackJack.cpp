@@ -111,13 +111,13 @@ void SleepFor(int miliseconds)
 
 struct Hand
 {
-    vector<Card> cards;
-    int result = -1;
-    int dealer_result = -1;
-    int bet_amount = 0; 
-    bool open = false; 
     bool validOption[4] = { true, true, true, true };
+    bool open = false; 
     bool split = false;
+    int dealer_result = -1;
+    int result = -1;
+    int bet_amount = 0; 
+    vector<Card> cards;
 
     vector<Card> &operator() (){
         return cards;
@@ -140,7 +140,6 @@ struct Game {
     Player dealer;
     Player player;
 
-    int dealer_turn = false;
     bool splited = false;
 
     void GiveOneCard(Player &to, int faceUp = 1, int hand = -1)
@@ -153,7 +152,7 @@ struct Game {
         to.hand[hand]().push_back(draw_card);
     }
 
-    int HandPower(Player &to, int hand = -1) 
+    int GetHandPower(Player &to, int hand = -1) 
     {
         if(hand == -1) hand = to.using_hand;
         int hand_power = 0;
@@ -172,16 +171,17 @@ struct Game {
         return hand_power;
     }
 
-    bool AnyHandOpen(Player &of)
+    int HandsOpen(Player &of)
     {
+        int count = 0;
         for(auto hand : of.hand)
             if(hand.open)
-                return true;
+                count++;
         
-        return false;
+        return count;
     }
     
-    int IsBlackJack(Player &to, int hand = -1)
+    int EvaluateBlackJackHand(Player &to, int hand = -1)
     {
         if(hand == -1) hand = to.using_hand;
         if(to.hand[to.using_hand]().size() < 2) return false;
@@ -230,35 +230,16 @@ struct Game {
         splited = true;
     }
 
-    void GameView() 
-    {
-        SleepFor(300);
-        cout << "Balance: " << player.balance << "$\n";
-        cout << "=========================================\n";
-        cout << "Hand #" << player.using_hand + 1  << " | Winning pot: " << player.hand[player.using_hand].bet_amount * 2 << "$\n";
-        cout << "=========================================\n";
-        SleepFor(500); 
-        cout << "Dealer (";
-        cout << HandPower(dealer); 
-        cout << "): "; ShowCards(dealer.hand[dealer.using_hand]()); cout << '\n';
-        SleepFor(500); 
-        cout << "Player (";
-        cout << HandPower(player); 
-        cout << "): "; ShowCards(player.hand[player.using_hand]()); cout << '\n';
-        cout << "=========================================\n";
-        SleepFor(300);
-    }
-
-    void ResolveWinningHands(Player &of)
+    void ResolvePlayerHands(Player &of)
     {
         int win_result = -1;
         int dealer_result = dealer.hand[0].result;
-        int dealer_hand_power = HandPower(dealer);
+        int dealer_hand_power = GetHandPower(dealer);
         
         for(int i = 0; i < of.open_hands; i++)
         {
             int player_result = of.hand[i].result;
-            int player_hand_power = HandPower(of, i);
+            int player_hand_power = GetHandPower(of, i);
             
             if(player_result == dealer_result)
             {
@@ -292,12 +273,12 @@ struct Game {
         }
     }
 
-    void WinnigView() {
+    void DisplayGameResults() {
         system("cls");
         
         // THE WIN RESOLVER AND WIN CHECKS NEED REVISIONS
 
-        ResolveWinningHands(player);
+        ResolvePlayerHands(player);
 
         int total_winings = 0;
         
@@ -309,13 +290,13 @@ struct Game {
             int result = player.hand[i].result;
             int dealer_result = player.hand[i].dealer_result;
             int bet_amount = player.hand[i].bet_amount;
-            int player_hand_power = HandPower(player, i);
+            int player_hand_power = GetHandPower(player, i);
 
             SleepFor(300);
             cout << "Hand #" << i + 1 << " | Bet amount: $" << bet_amount << '\n';
 
             SleepFor(300);
-            cout << "Dealer: Hand-Power: " << HandPower(dealer) << " (" << result_strings[dealer_result] << ") ";
+            cout << "Dealer: Hand-Power: " << GetHandPower(dealer) << " (" << result_strings[dealer_result] << ") ";
             ShowCards(dealer.hand[dealer.using_hand]()); cout << '\n';
             cout << "Player: Hand-Power: " << player_hand_power << " (" << result_strings[result] << ") ";
             ShowCards(player.hand[i]()); cout << '\n';
@@ -358,6 +339,69 @@ struct Game {
         cout << "=========================================\n";
     }
 
+    void PlaceBetForHand(int hand = -1)
+    {
+        system("cls");
+        if(hand == -1) hand = player.using_hand;
+        SleepFor(300); 
+        cout << "Balance: " << player.balance << "$\n";
+        cout << "=========================================\n";
+        SleepFor(300); 
+        cout << "Hand #" << hand + 1 << " Bet: ";
+        
+        if(player.balance <= 0)
+            throw NO_MONEY;
+
+        int player_bet = 0;
+        while (true)
+        {
+            cin >> player_bet;
+            if(player_bet <= player.balance && player_bet > 0)
+                break;
+        }
+
+        player.balance -= player_bet;
+        player.hand[hand].bet_amount = player_bet;
+        player.hand[hand].open = true;
+    }
+
+    void SelectNumberOfHands()
+    {
+        SleepFor(300); 
+        cout << "How many hands you bet (Max 5)\n";
+        cout << "=========================================\n";
+        SleepFor(300); 
+        cout << "Hands: ";
+
+        int hands = 0;
+        while (true)
+        {
+            cin >> hands;
+            if(hands <= 5 && hands > 0)
+                break;
+        }
+
+        player.open_hands = hands;
+    }
+
+    void MultypleHandStart()
+    {
+        SelectNumberOfHands();
+
+        for(int i = 0; i < player.open_hands; i++)
+            PlaceBetForHand(i);
+        
+        for(int i = 0; i < 2; i++)
+        {
+            for(int j = 0; j < player.open_hands; j++)
+                GiveOneCard(player, 1, j);
+
+            GiveOneCard(dealer);
+        }
+
+        dealer.hand[0]()[1].faceUp = false;
+    }
+
     int PlayerOptionView()
     {       
         int option = 0; 
@@ -398,121 +442,46 @@ struct Game {
         return option;
     }
 
-    int DealerAction()
+    void PlayerTurn()
     {
-        int dealerHand = HandPower(dealer);
-
-        if(dealerHand <= 16) return HIT;
-        else return STAND;
-    }
-
-    void PlaceBetView(int hand = -1)
-    {
-        system("cls");
-        if(hand == -1) hand = player.using_hand;
-        SleepFor(300); 
-        cout << "Balance: " << player.balance << "$\n";
-        cout << "=========================================\n";
-        SleepFor(300); 
-        cout << "Hand #" << hand + 1 << " Bet: ";
-        
-        if(player.balance <= 0)
-            throw NO_MONEY;
-
-        int player_bet = 0;
-        while (true)
-        {
-            cin >> player_bet;
-            if(player_bet <= player.balance && player_bet > 0)
-                break;
-        }
-
-        player.balance -= player_bet;
-        player.hand[hand].bet_amount = player_bet;
-        player.hand[hand].open = true;
-    }
-
-    void OpenHandsView()
-    {
-        SleepFor(300); 
-        cout << "How many hands you bet (Max 5)\n";
-        cout << "=========================================\n";
-        SleepFor(300); 
-        cout << "Hands: ";
-
-        int hands = 0;
-        while (true)
-        {
-            cin >> hands;
-            if(hands <= 5 && hands > 0)
-                break;
-        }
-
-        player.open_hands = hands;
-    }
-
-    void GameLoop()
-    { 
-        OpenHandsView();
-
-        for(int i = 0; i < player.open_hands; i++)
-            PlaceBetView(i);
-        
-        for(int i = 0; i < 2; i++)
-        {
-            for(int j = 0; j < player.open_hands; j++)
-                GiveOneCard(player, 1, j);
-
-            GiveOneCard(dealer);
-        }
-
-        dealer.hand[0]()[1].faceUp = false;
-
-        if(IsBlackJack(dealer))
-        {
-            dealer.hand[0]()[1].faceUp = true;
-            dealer.hand[0].result = BLACK_JACK;
-
-            // HERE SHOULD BE SOME KIND OF INSURANCE I THINK
-        }
-
         bool hand_closed;
         bool using_splitted_hand = false;
         int last_hand_used;
         while(player.using_hand < player.open_hands)
         {
-            if(!player.hand[player.using_hand].open) 
+            Hand &current_hand = player.hand[player.using_hand];
+
+            if(!current_hand.open) 
             {
                 player.using_hand++;
                 continue;
             }
 
-            if(player.hand[player.using_hand]()[0].power == player.hand[player.using_hand]()[1].power)
-                        player.hand[player.using_hand].validOption[SPLIT] = true;
-            else player.hand[player.using_hand].validOption[SPLIT] = false;
+            if(current_hand()[0].power == current_hand()[1].power) current_hand.validOption[SPLIT] = true;
+            else current_hand.validOption[SPLIT] = false;
 
-            if(player.balance < player.hand[player.using_hand].bet_amount)
+            if(player.balance < current_hand.bet_amount)
             {
-                player.hand[player.using_hand].validOption[DOUBLE] = false; 
-                player.hand[player.using_hand].validOption[SPLIT] = false; 
+                current_hand.validOption[DOUBLE] = false; 
+                current_hand.validOption[SPLIT] = false; 
             }
 
-            if(player.hand[player.using_hand].split)
-                player.hand[player.using_hand].validOption[SPLIT] = false; 
+            if(current_hand.split)
+                current_hand.validOption[SPLIT] = false; 
 
             if(dealer.hand[0].result == BLACK_JACK)
                 for(int i = 0; i < 4; i++)
                 {
                     if(i == STAND) continue;
-                    player.hand[player.using_hand].validOption[i] = false;
+                    current_hand.validOption[i] = false;
                 }
 
             hand_closed = false;
             while (!hand_closed)
             {
-                if(HandPower(player) >= 21)
+                if(GetHandPower(player) >= 21)
                 {
-                    player.hand[player.using_hand].validOption[HIT] = false;
+                    current_hand.validOption[HIT] = false;
                     hand_closed = true; 
                 }
 
@@ -526,17 +495,22 @@ struct Game {
                 else if(option == SPLIT+1) Split(player);
                 
                 if(option == STAND+1 || option == DOUBLE+1)
+                {
+                    system("cls");
+                    GameView();
+                    SleepFor(300);
                     hand_closed = true;
+                }
             }
 
-            int hand_power = HandPower(player);
+            int hand_power = GetHandPower(player);
 
-            if(IsBlackJack(player)) player.hand[player.using_hand].result = BLACK_JACK;  
-            else if(hand_power > 21) player.hand[player.using_hand].result = BUST;
-            else if(hand_power == 21) player.hand[player.using_hand].result = WIN;
-            else if(hand_power < 21) player.hand[player.using_hand].result = LESS;
+            if(EvaluateBlackJackHand(player)) current_hand.result = BLACK_JACK;  
+            else if(hand_power > 21) current_hand.result = BUST;
+            else if(hand_power == 21) current_hand.result = WIN;
+            else if(hand_power < 21) current_hand.result = LESS;
             
-            player.hand[player.using_hand].open = false;
+            current_hand.open = false;
             
             if(using_splitted_hand)
             {
@@ -553,21 +527,17 @@ struct Game {
             }
             else player.using_hand++;
         }
+    }
 
-        dealer.hand[0]()[1].faceUp = true;
-        if(HandPower(dealer) == 21 && !IsBlackJack(dealer))
-            dealer.hand[0].result = WIN;
+    int DealerAction()
+    {
+        if(GetHandPower(dealer) <= 16) return HIT;
+            else return STAND;
+    }
 
-        if(dealer.hand[0].result != -1)
-        {
-            system("cls");
-            GameView();
-
-            throw GAME_DONE;
-        }
-
-        player.using_hand = 0;
-        dealer_turn = true;
+    void DealerTurn()
+    {
+        bool dealer_turn = true;
         while (dealer_turn)
         {
             system("cls");
@@ -590,11 +560,64 @@ struct Game {
             }   
             SleepFor(700);
         }
+
+        int hand_power = GetHandPower(dealer);
+        if(hand_power > 21) dealer.hand[0].result = BUST;
+        else if(hand_power == 21) dealer.hand[0].result = WIN;
+        else if(hand_power < 21) dealer.hand[0].result = LESS;
+    }
+
+    void GameView() 
+    {
+        SleepFor(300);
+        cout << "Balance: $" << player.balance << " | Hands Left: " << HandsOpen(player) - 1 << '\n';
+        cout << "=========================================\n";
+        cout << "Hand #" << player.using_hand + 1  << " | Winning pot: " << player.hand[player.using_hand].bet_amount * 2 << "$\n";
+        cout << "=========================================\n";
+        SleepFor(500); 
+        cout << "Dealer (";
+        cout << GetHandPower(dealer); 
+        cout << "): "; ShowCards(dealer.hand[dealer.using_hand]()); cout << '\n';
+        SleepFor(500); 
+        cout << "Player (";
+        cout << GetHandPower(player); 
+        cout << "): "; ShowCards(player.hand[player.using_hand]()); cout << '\n';
+        cout << "=========================================\n";
+        SleepFor(500);
+    }
+
+    void GameLoop()
+    { 
+        // START WITH MULTIPLE HANDS
+        MultypleHandStart();
+
+        if(EvaluateBlackJackHand(dealer))
+        {
+            dealer.hand[0]()[1].faceUp = true;
+            dealer.hand[0].result = BLACK_JACK;
+
+            // HERE SHOULD BE SOME KIND OF INSURANCE I THINK
+        }
+
+        // PLAYER TURN 
+        PlayerTurn();
+
+        dealer.hand[0]()[1].faceUp = true;
+        if(GetHandPower(dealer) == 21 && !EvaluateBlackJackHand(dealer))
+            dealer.hand[0].result = WIN;
+
+        if(dealer.hand[0].result != -1)
+        {
+            system("cls");
+            GameView();
+
+            throw GAME_DONE;
+        }
+
+        player.using_hand = 0;
         
-        int dealerHand = HandPower(dealer);
-        if(dealerHand > 21) dealer.hand[0].result = BUST;
-        else if(dealerHand == 21) dealer.hand[0].result = WIN;
-        else if(dealerHand < 21) dealer.hand[0].result = LESS;
+        // DEALER TURN
+        DealerTurn();
 
         throw GAME_DONE;
     }
@@ -612,8 +635,8 @@ int main() {
     while (running)
     {
         system("cls");
-        Game game{original_deck};
-        game.deck = ShuffleDeck(game.deck);
+        Game game;
+        game.deck = ShuffleDeck(original_deck);
         game.player = player;
 
         try
@@ -640,7 +663,7 @@ int main() {
             }
             if(code == GAME_DONE)
             {
-                game.WinnigView();
+                game.DisplayGameResults();
 
                 cout << "Do you want to place another bet?\n";
                 cout << "No-0\n";
