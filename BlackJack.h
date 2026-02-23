@@ -437,28 +437,31 @@ private:
         int dealer_hand_power = GetHandPower(dealer.cards);
         for(int hand = 0; hand < player.OpenHandsCount(); hand++)
         {
+            float win_amount = 0;
+            int game_result = -1;
+            
             int player_hand_power = GetHandPower(player(hand).cards);
 
             bool player_blackjack = BlackJack(player(hand).cards);
             bool dealer_blackjack = BlackJack(dealer.cards);  
 
             if(player(hand).busted)
-                game_results[hand] = BUST;
+                game_result = BUST;
             else if(player_blackjack && dealer_blackjack)
-                game_results[hand] = PUSH;
+                game_result = PUSH;
             else if(dealer_blackjack && !player_blackjack)
-                game_results[hand] = LOST;
+                game_result = LOST;
             else if(player_blackjack && !dealer_blackjack)
-                game_results[hand] = BLACJACK;
+                game_result = BLACJACK;
             else if(player_hand_power == dealer_hand_power)
-                game_results[hand] = PUSH;
+                game_result = PUSH;
             else if (
                 player_hand_power <= 21 && (
                     dealer_hand_power > 21 || 
                     dealer_hand_power < player_hand_power
                 )
             ) 
-            game_results[hand] = WIN;
+            game_result = WIN;
 
             else if (
                 dealer_hand_power <= 21 && (
@@ -466,20 +469,19 @@ private:
                     player_hand_power < dealer_hand_power
                 )
             )
-            game_results[hand] = LOST;
+            game_result = LOST;
+
+            if(game_result == BLACJACK) win_amount = player(hand).bet_amount * 1.5;   
+            else if(game_result == WIN) win_amount = player(hand).bet_amount;
+            else if(game_result == LOST || game_result == BUST) win_amount = -player(hand).bet_amount;
+
+            player.balance += win_amount;
+            game_results[hand] = game_result;
+
+            #ifdef USE_GET_INFO
+            results_info.win_amount = win_amount;
+            #endif
         }
-
-        float win_amount = 0;
-        for(int hand = 0; hand < game_results.size(); hand++)
-        {
-            const int &result = game_results[hand];
-
-            if(result == BLACJACK) win_amount = player(hand).bet_amount * 1.5;   
-            else if(result == WIN) win_amount = player(hand).bet_amount;
-            else if(result == LOST || result == BUST) win_amount = -player(hand).bet_amount;
-        }
-
-        player.balance += win_amount;
 
         state = WAITING;
 
@@ -489,7 +491,6 @@ private:
         results_info.game_results = game_results;
         results_info.player_hands = player.GetOpenHands();
         results_info.balance = player.balance;
-        results_info.win_amount = win_amount;
         #endif
     }
 

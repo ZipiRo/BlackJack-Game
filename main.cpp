@@ -166,7 +166,7 @@ int main()
     Player player;
     player.balance = 100;
 
-    blackjack_game.Init(player, ShuffleDeck(original_deck));
+    blackjack_game.Init(player, original_deck);
     blackjack_game.Start();
 
     while (game_runnning)
