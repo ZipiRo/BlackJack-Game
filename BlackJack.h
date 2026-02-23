@@ -31,10 +31,15 @@
     -"HAND" IS THE PLACE WHERE YOU HOLD YOUR CARDS AND THE BET AMOUNT,
         THERE ARE JUST TWO HANDS POSIBLE THE START HAND AND THE SPLITTED ONE 
     
-        -------------------------------------------------------------------
-            IF YOU WANT TO USE THE USER INTERFACE FOR THE GAME USE:
-                #define USE_UI_GET_INFO
-        -------------------------------------------------------------------
+    -------------------------------------------------------------------
+        IF YOU WANT TO USE FETCH GAME INFORMATION USE:
+            #define USE_GET_INFO
+
+        YOU CAN GET THE GAME STATE INFO, PLAYER INFO, ETC.
+        YOU CAN USE THE RESULT INFO THAT IS CREATED AT THE RESULT STATE 
+        
+        USING THAT YOU CAN MAKE UI FOR THE GAME, OR USE THE DATA IN ANY WAY YOU WANT
+    -------------------------------------------------------------------
 
     BY ZIPIRO
 */
@@ -136,13 +141,15 @@ bool BlackJack(const std::vector<Card> &cards)
 
 struct BlackJackGame;
 
+const int PLAYER_ACTION_COUNT = 4;
+
 struct Hand
 {
     bool open = true;
     bool busted = false;
+
     float bet_amount = 0.0f;
 
-    std::vector<bool> valid_actions = std::vector<bool>(4);
     std::vector<Card> cards;
 
     // OPERATOR GIVES THE CARD AT INDEX
@@ -159,6 +166,7 @@ struct Player
 {
 private:
     int current_hand_index = 0;
+    
     std::vector<Hand> open_hands;
 
     void OpenHand() 
@@ -250,13 +258,12 @@ struct Dealer
 private:
     std::vector<Card> cards;
 
-    friend BlackJackGame;
-
-public:
     void AddCard(const Card &card)
     {
         cards.push_back(card);
     }
+
+    friend BlackJackGame;
 };
 
 enum GameState
@@ -280,7 +287,6 @@ struct GameInfo
     GameState state;
 
     std::vector<Card> dealer_cards;
-    std::vector<bool> valid_actions;
     Hand current_hand;
 };
 
@@ -344,63 +350,9 @@ private:
 
         state = PLAYER_TURN;
 
-        #ifdef USE_UI_GET_INFO
-        for(int action = 0; action < player.GetCurrentHand().valid_actions.size(); action++)
-            IsActionValid(action);
+        #ifdef USE_GET_INFO
         game_info.bet_amount = player_bet_amount;
         #endif
-    }
-
-    bool IsActionValid(int action)
-    {
-        Hand &current_hand = player.GetCurrentHand();
-
-        if(action == HIT)
-        {
-            current_hand.valid_actions[action] =
-            (
-                deck.size() > 0 &&
-                !player.GetCurrentHand().busted
-            );
-
-            return current_hand.valid_actions[action];
-        }  
-
-        if(action == STAND)
-        {
-            current_hand.valid_actions[action] = 
-            (
-                true
-            );
-
-            return current_hand.valid_actions[action];
-        }
-
-        if(action == DOUBLE)
-        {
-            current_hand.valid_actions[action] =
-            (
-                current_hand.bet_amount <= player.balance - current_hand.bet_amount &&
-                current_hand.cards.size() == 2 
-            );
-
-            return current_hand.valid_actions[action];
-        }
-
-        if(action == SPLIT)
-        {
-            current_hand.valid_actions[action] =
-            (
-                current_hand.bet_amount <= player.balance - current_hand.bet_amount &&
-                current_hand[0].power == current_hand[1].power && 
-                current_hand.cards.size() == 2 && 
-                !splitted
-            );
-
-            return current_hand.valid_actions[action];
-        }
-
-        return false;
     }
 
     void PlayerHit()
@@ -456,7 +408,7 @@ private:
             state = RESULTS;
         }
 
-        #ifdef USE_UI_GET_INFO
+        #ifdef USE_GET_INFO
         game_info.dealer_action = action;
         #endif
     }
@@ -469,11 +421,6 @@ private:
         if(player.HandsLeftCount() > 0)
         {
             player.NextHand();
-
-            #ifdef USE_UI_GET_INFO
-            for(int action = 0; action < player.GetCurrentHand().valid_actions.size(); action++)
-                IsActionValid(action);
-            #endif
         }
         else 
         {
@@ -536,7 +483,7 @@ private:
 
         state = WAITING;
 
-        #ifdef USE_UI_GET_INFO
+        #ifdef USE_GET_INFO
         game_info.balance = player.balance;
         results_info.dealer_cards = dealer.cards;
         results_info.game_results = game_results;
@@ -545,6 +492,11 @@ private:
         results_info.win_amount = win_amount;
         #endif
     }
+
+    #ifdef USE_GET_INFO
+    GameInfo game_info;
+    ResultGameInfo results_info;
+    #endif
 
 public:
     bool game_done = false;
@@ -560,7 +512,7 @@ public:
     {
         state = BETTING;
         
-        #ifdef USE_UI_GET_INFO
+        #ifdef USE_GET_INFO
         game_info.balance = player.balance;
         #endif
     }
@@ -580,6 +532,50 @@ public:
     void SetDeck(const std::vector<Card> deck)
     {
         this->deck = deck;
+    }
+
+    bool IsActionValid(int action)
+    {
+        Hand &current_hand = player.GetCurrentHand();
+
+        if(action == HIT)
+        {
+            return
+            (
+                deck.size() > 0 &&
+                !player.GetCurrentHand().busted
+            );
+        }  
+
+        if(action == STAND)
+        {
+            return 
+            (
+                true
+            );
+        }
+
+        if(action == DOUBLE)
+        {
+            return
+            (
+                current_hand.bet_amount <= player.balance - current_hand.bet_amount &&
+                current_hand.cards.size() == 2 
+            );
+        }
+
+        if(action == SPLIT)
+        {
+            return
+            (
+                current_hand.bet_amount <= player.balance - current_hand.bet_amount &&
+                current_hand[0].power == current_hand[1].power && 
+                current_hand.cards.size() == 2 && 
+                !splitted
+            );
+        }
+
+        return false;
     }
 
     bool ApplyPlayerAction(int action)
@@ -645,230 +641,20 @@ public:
             break;
         }
 
-        #ifdef USE_UI_GET_INFO
+        #ifdef USE_GET_INFO
         game_info.state = state;
         game_info.dealer_cards = dealer.cards;
         if(player.OpenHandsCount() > 0)
         {
             game_info.current_hand = player.GetCurrentHand();
-            game_info.valid_actions = player.GetCurrentHand().valid_actions;
             game_info.current_hand_index = player.current_hand_index;
         }
         #endif
     }
 
-    #ifdef USE_UI_GET_INFO
-    GameInfo game_info;
-    ResultGameInfo results_info;
-    const GameInfo &GetGameInfo()
-    {
-        return game_info;
-    }
-
-    ResultGameInfo GetResultsInfo()
-    {
-        return results_info;
-    }
+    #ifdef USE_GET_INFO
+    const GameInfo &GetGameInfo() { return game_info; }
+    ResultGameInfo GetResultsInfo() { return results_info; }
     #endif
 
 };
-
-/*
-    HERE I AM MAKING THE UI FOR THIS GAME BASE ON THE INFO THAT I AM FETCHING FROM THE GAME
-    
-    FIRSTLY USE THE FUNCTION InitGameDisplay(BlackJackGame) AND GIVE YOUR GAME AS A PARAMETER
-    TO USE THIS MAKE A LOOP THAN RUN THE GAME AFTER THAT YOU DO DisplayGame()
-    TO STOP THE LOOP YOU CAN USE THE game_done FROM THE GAME STRUCT 
-
-    USE THIS AS AN EXAMPLE IN A .cpp FILE 
-
-    #define USE_UI_GET_INFO
-
-    #include "BlackJack.h"
-
-    std::vector<Card> original_deck;
-
-    BlackJackGame game;
-
-    bool game_runnning = true;
-
-    int main()
-    {
-        srand(time(NULL));
-
-        original_deck = InitOriginalDeck();
-
-        Player player;
-        player.balance = 100;
-
-        game.Init(player, ShuffleDeck(original_deck));
-        InitGameDisplay(&game);
-
-        game.Start();
-
-        while (game_runnning)
-        {
-            game.Run();
-
-            if(game.game_done)
-            {
-                game.ResetGame();
-                game.SetDeck(ShuffleDeck(original_deck));
-            }
-
-            DisplayGame();
-        }
-
-        return 0;
-    }
-*/
-
-#ifdef USE_UI_GET_INFO
-
-#include <iostream>
-#include <thread>
-#include <chrono>
-
-void ShowCards(const std::vector<Card> &cards)
-{
-    for(auto card : cards)
-    {
-        if(card.faceUp == 0) 
-        {
-            std::cout << "FaceDown "; 
-            continue; 
-        
-        }
-        if(card.name != "Ace") std::cout << card.power << ' ' ;
-
-        std::cout << card.name << '-' ;        
-        std::cout << card.type << ' '; 
-    }
-}
-
-static std::string action_strings[5] = {"HIT", "STAND", "DOUBLE", "SPLIT"};
-static std::string result_strings[6] = {"WIN", "LOST", "BUST", "PUSH", "BLACKJACK"};
-
-BlackJackGame *bj_game = nullptr;
-
-void InitGameDisplay(BlackJackGame *game) 
-{
-    bj_game = game;
-}
-
-void BetUI(const GameInfo &game_info)
-{
-    std::system("cls");
-
-    std::cout << "Balance: $" << game_info.balance << '\n';
-
-    float bet_amount = 0;
-    while (bet_amount <= 0)
-    {
-        std::cout << "Bet: ";
-        std::cin >> bet_amount;
-
-        if(bet_amount > game_info.balance)
-            bet_amount = 0; 
-    }
-    
-    bj_game->PlayerBet(bet_amount);
-}
-
-void PlayerTrunUI(const GameInfo &game_info)
-{
-    std::system("cls");
-
-    int player_action = -1;
-
-    std::cout << "Hand #" << game_info.current_hand_index << '\n'; 
-    std::cout << "Player Cards: ";
-    ShowCards(game_info.current_hand.cards);
-    std::cout << " | (" << GetHandPower(game_info.current_hand.cards) << ")" << '\n';
-    std::cout << "Dealer Cards: ";
-    ShowCards(game_info.dealer_cards);
-    std::cout << " | (" << GetHandPower(game_info.dealer_cards) << ")" << '\n';
-    std::cout << "=====================================================" << '\n';
-    std::cout << "Actions: ";
-    
-    for(int i = 0; i < game_info.valid_actions.size(); i++)
-    {
-        if(game_info.valid_actions[i])
-            std::cout << i + 1 << "-" << action_strings[i] << " ";
-    }
-
-    std::cout << '\n';
-    std::cout << "Option: ";
-    while (player_action == -1)
-    {
-        std::cin >> player_action;
-    }
-
-    bj_game->ApplyPlayerAction(player_action - 1);
-}
-
-void DealerTurnUI(const GameInfo &game_info)
-{
-    std::system("cls");
-
-    int player_action = -1;
-
-    std::cout << "Dealer Cards: ";
-    ShowCards(game_info.dealer_cards);
-    std::cout << " | (" << GetHandPower(game_info.dealer_cards) << ")" << '\n';
-    std::cout << "=====================================================" << '\n';
-    std::cout << "Action: " << action_strings[game_info.dealer_action] << '\n';
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-}
-
-void ResultsUI(const ResultGameInfo &result_info)
-{
-    std::system("cls");
-
-    std::cout << "Balance: $" << result_info.balance << '\n';
-    
-    std::cout << "=====================================================" << '\n';
-
-    std::cout << "Dealer Cards: ";
-    ShowCards(result_info.dealer_cards);
-    std::cout << " | (" << GetHandPower(result_info.dealer_cards) << ")" << '\n';
-
-    std::cout << "=====================================================" << '\n';
-
-    for(int i = 0; i < result_info.game_results.size(); i++)
-    {
-        std::cout << "Hand #" << i + 1 << " | " << result_info.win_amount << "$" << '\n';
-        std::cout << "Player Cards: ";
-        ShowCards(result_info.player_hands[i].cards);
-        std::cout << " | (" << GetHandPower(result_info.player_hands[i].cards) << ")" << '\n';
-        std::cout << result_strings[result_info.game_results[i]] << '\n';
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-}
-
-void DisplayGame()
-{
-    const GameInfo &game_info = bj_game->GetGameInfo();
-
-    switch (game_info.state)
-    {
-    case BETTING:
-        BetUI(game_info);
-        break;
-    case PLAYER_TURN:
-        PlayerTrunUI(game_info);
-        break;
-    case DEALER_TURN:
-        DealerTurnUI(game_info);
-        break;
-    case WAITING:
-        ResultsUI(bj_game->GetResultsInfo());
-        break;
-    default:
-        break;
-    }
-}
-
-#endif
