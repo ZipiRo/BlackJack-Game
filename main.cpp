@@ -18,12 +18,29 @@
 /*
     I WANTED TO ADD THIS CHEET SHEET TO SEE HOW EFECTIVE IT IS
     AI HELPED ME WITH THE PARSING OF THE TABLE (I AM TO LAZY FOR THAT)
-    AND HELPED ME ON THE FUNCTION  Action GetBestAction(player_hand, dealer_card);
+    AND HELPED ME ON THE FUNCTION Action GetBestAction(player_hand, dealer_card);
+
+    WHEN IT IS THE PLAYER'S TURN THERE WILL BE A BEST ACTION VALUE
+*/
+
+/*
+    I MADE A SIMULTION USING THIS CHEET SHEET SO KNOW I CAN REALY SEE HOW EFECTIVE IT IS
+    TO RUN SUMULATIONS YOU NEED TO RUN THE PROGRAM IN THE COMAND PROMPT LIKE THIS
+    --------------------------------------------------------------
+    ./program --sim [simulations] [balance] [min_bet] [max_bet]
+    --------------------------------------------------------------
+    AFTER THE SIMULATION THE PROGRAM WILL OUTPUT A FILE NAMED 'bj_simulation.log',
+    WHERE YOU CAN FIND INFORMATION ABOUT THE SIMULATION. 
+    IN THE LOG FILE YOU FIND THE ROUND INFORMATION, MIN_BALANCE, MAX_BALANCE, ROUNDS_PLAYED.
 */
 
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <fstream>
+#include <random>
+#include <cstdlib>
+#include <cstring>
 
 BlackJackGame blackjack_game;
 
@@ -146,8 +163,10 @@ void ShowCards(const std::vector<Card> &cards)
     }
 }
 
-void BetUI(const GameInfo &game_info)
+void BetUI()
 {
+    const GameInfo &game_info = blackjack_game.GetGameInfo();
+
     std::system("cls");
 
     std::cout << "Balance: $" << game_info.balance << '\n';
@@ -165,8 +184,10 @@ void BetUI(const GameInfo &game_info)
     blackjack_game.PlayerBet(bet_amount);
 }
 
-void PlayerTurnUI(const GameInfo &game_info)
+void PlayerTurnUI()
 {
+    const GameInfo &game_info = blackjack_game.GetGameInfo();
+
     std::system("cls");
 
     int player_action = -1;
@@ -197,8 +218,10 @@ void PlayerTurnUI(const GameInfo &game_info)
     }
 }
 
-void DealerTurnUI(const GameInfo &game_info)
+void DealerTurnUI()
 {
+    const GameInfo &game_info = blackjack_game.GetGameInfo();
+
     std::system("cls");
 
     int player_action = -1;
@@ -212,8 +235,10 @@ void DealerTurnUI(const GameInfo &game_info)
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 }
 
-void ResultsUI(const ResultGameInfo &result_info)
+void ResultsUI()
 {
+    const ResultGameInfo &result_info = blackjack_game.GetResultsInfo();
+
     std::system("cls");
 
     std::cout << "Balance: $" << result_info.balance << '\n';
@@ -240,21 +265,19 @@ void ResultsUI(const ResultGameInfo &result_info)
 
 void DisplayGame()
 {
-    const GameInfo &game_info = blackjack_game.GetGameInfo();
-
-    switch (game_info.state)
+    switch (blackjack_game.GetGameState())
     {
     case BETTING:
-        BetUI(game_info);
+        BetUI();
         break;
     case PLAYER_TURN:
-        PlayerTurnUI(game_info);
+        PlayerTurnUI();
         break;
     case DEALER_TURN:
-        DealerTurnUI(game_info);
+        DealerTurnUI();
         break;
     case WAITING:
-        ResultsUI(blackjack_game.GetResultsInfo());
+        ResultsUI();
         break;
     default:
         break;
@@ -264,12 +287,8 @@ void DisplayGame()
 std::vector<Card> original_deck;
 bool game_runnning = true;
 
-int main()
+void PlayerPlay()
 {
-    srand(time(NULL));
-
-    original_deck = InitOriginalDeck();
-
     Player player;
     player.balance = 100;
 
@@ -288,6 +307,138 @@ int main()
 
         DisplayGame();
     }
+}
 
-    return 0;
+void SimulatePlay(int rounds, float balance, int min_bet, int max_bet)
+{
+    std::ofstream out("bj_simulation.log");
+
+    Player player;
+    player.balance = balance;
+
+    blackjack_game.Init(player, ShuffleDeck(original_deck));
+    blackjack_game.Start();
+
+    int rounds_played = 0;
+    float max_balance = player.balance;
+    float min_balance = player.balance;
+
+    while (rounds_played != rounds)
+    {
+        if(blackjack_game.game_done)
+        {
+            blackjack_game.ResetGame();
+            blackjack_game.SetDeck(ShuffleDeck(original_deck));
+        }
+
+        if(blackjack_game.GetGameInfo().balance <= 0)
+        {
+            out << "Player lost all the balance!\n";
+            out << "=====================================================" << '\n';
+            break;
+        }
+
+        if(blackjack_game.GetGameState() == GameState::BETTING)
+        {
+            float bet = min_bet + rand() % (max_bet- min_bet + 1);
+            if(bet > blackjack_game.GetGameInfo().balance)
+                bet = blackjack_game.GetGameInfo().balance;
+
+            blackjack_game.PlayerBet(bet);
+        }
+
+        blackjack_game.Run();
+
+        if(blackjack_game.GetGameState() == GameState::WAITING)
+        {
+            const ResultGameInfo &result_info = blackjack_game.GetResultsInfo();
+            rounds_played++;
+
+            out << "Round: #" << rounds_played << '\n'; 
+            out << "Balance: $" << result_info.balance << '\n';
+            for(int i = 0; i < result_info.game_results.size(); i++)
+            {
+                out << "Hand #" << i + 1 << " | " << result_info.win_amount << "$" << '\n';
+                out << result_strings[result_info.game_results[i]] << '\n';
+            }
+            out << "=====================================================" << '\n';
+
+            if(min_balance > result_info.balance)
+                min_balance = result_info.balance;
+            
+            if(max_balance < result_info.balance)
+                max_balance = result_info.balance;
+        }
+
+        const GameInfo &game_info = blackjack_game.GetGameInfo();
+
+        int action = GetBestAction(game_info.current_hand.cards, game_info.dealer_cards[0]);
+
+        if(action == Action::H) action = HIT;
+        else if(action == Action::S) action = STAND;
+        else if(action == Action::P) action = SPLIT;
+        else if(action == Action::RH) action = HIT;
+        if(action == Action::DS) 
+            if(blackjack_game.IsActionValid(DOUBLE)) action = DOUBLE;
+                else action = STAND;
+        else if(action == Action::DH)
+            if(blackjack_game.IsActionValid(DOUBLE)) action = DOUBLE;
+                else action = HIT;
+        else if(action == Action::PH)
+            if(blackjack_game.IsActionValid(SPLIT)) action = SPLIT;
+                else action = HIT;
+
+        blackjack_game.ApplyPlayerAction(action);
+    }
+
+    out << "Min balance: $" << min_balance << '\n';
+    out << "Max balance: $" << max_balance << '\n';
+    out << "Rounds Played: " << rounds_played << '\n';  
+    
+    std::cout << "Min balance: $" << min_balance << '\n';
+    std::cout << "Max balance: $" << max_balance << '\n';
+    std::cout << "Rounds Played: " << rounds_played << '\n';  
+}
+
+int main(int argc, char* argv[])
+{
+    srand(time(0));
+
+    original_deck = InitOriginalDeck();
+
+    if(argc < 2)
+    {
+        PlayerPlay();
+        return 0;
+    }
+
+    if(strstr(argv[1], "--sim") && argc == 6)
+    {
+        int simulations = std::stoi(argv[2]);
+        int balance = std::stoi(argv[3]);
+        int min_bet = std::stoi(argv[4]);
+        int max_bet = std::stoi(argv[5]);
+
+        SimulatePlay(simulations, balance, min_bet, max_bet);
+
+        return 0;
+    }
+    else 
+    {
+        std::cout << "================================================================================================\n";
+        std::cout << "To simulate BlackJack rounds you need to use this command\n";
+        std::cout << '\n';
+        std::cout << "Command: ./program --sim [simulations] [balance] [min_bet] [max_bet]\n";
+        std::cout << '\n';
+        std::cout << "When the program finnishes it will output a log file 'bj_simulation.log';\n";
+        std::cout << "The log file will contain: rounds_stats, min_balance, max_balance, rounds_played;\n";
+        std::cout << "In the console you'll find the min_balance, max_balance, rounds_played;\n";
+        std::cout << '\n';
+        std::cout << "The simulation is using the basic cheet sheet table of BlackJack\n";
+        std::cout << '\n';
+        std::cout << "By ZipiRo\n";
+        std::cout << "================================================================================================\n";
+
+        return 1;
+    }
 }
