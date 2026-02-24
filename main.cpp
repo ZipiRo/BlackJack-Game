@@ -27,11 +27,16 @@
     I MADE A SIMULTION USING THIS CHEET SHEET SO KNOW I CAN REALY SEE HOW EFECTIVE IT IS
     TO RUN SUMULATIONS YOU NEED TO RUN THE PROGRAM IN THE COMAND PROMPT LIKE THIS
     --------------------------------------------------------------
-    ./program --sim [simulations] [balance] [min_bet] [max_bet]
+    COMMAND: ./program --sim [simulations] [balance] [min_bet] [max_bet]
     --------------------------------------------------------------
     AFTER THE SIMULATION THE PROGRAM WILL OUTPUT A FILE NAMED 'bj_simulation.log',
     WHERE YOU CAN FIND INFORMATION ABOUT THE SIMULATION. 
     IN THE LOG FILE YOU FIND THE ROUND INFORMATION, MIN_BALANCE, MAX_BALANCE, ROUNDS_PLAYED.
+*/
+
+/*
+    ADDED THE OPTION TO OUTPUT A CSV FILE FOR VISUAL STATISTICS
+    COMMAND: ./program --sim [simulations] [balance] [min_bet] [max_bet] (--csv [file_name] ) 
 */
 
 #include <iostream>
@@ -309,6 +314,20 @@ void PlayerPlay()
     }
 }
 
+bool use_CSV_file = false;
+std::ofstream CSVFile;
+void CreateCSVFile(std::string csv_file_name)
+{
+    CSVFile.open(csv_file_name + ".csv");
+    CSVFile << "Balance,Min_Balance,Max_Balance\n";
+}
+void AddLineToCSVFile(float balance, float min_balance, float max_balance)
+{
+    if(!CSVFile.is_open()) return;
+
+    CSVFile << balance << ',' << min_balance << ',' << max_balance << '\n';
+}
+
 void SimulatePlay(int rounds, float balance, int min_bet, int max_bet)
 {
     std::ofstream out("bj_simulation.log");
@@ -368,6 +387,9 @@ void SimulatePlay(int rounds, float balance, int min_bet, int max_bet)
             
             if(max_balance < result_info.balance)
                 max_balance = result_info.balance;
+
+            if(use_CSV_file)
+                AddLineToCSVFile(result_info.balance, min_balance, max_balance);
         }
 
         const GameInfo &game_info = blackjack_game.GetGameInfo();
@@ -395,11 +417,32 @@ void SimulatePlay(int rounds, float balance, int min_bet, int max_bet)
     out << "Min balance: $" << min_balance << '\n';
     out << "Max balance: $" << max_balance << '\n';
     out << "Rounds Played: " << rounds_played << '\n'; 
-    
+    out.close();
+
     std::cout << "Balance: $" << blackjack_game.GetGameInfo().balance << '\n';   
     std::cout << "Min balance: $" << min_balance << '\n';
     std::cout << "Max balance: $" << max_balance << '\n';
     std::cout << "Rounds Played: " << rounds_played << '\n';  
+}
+
+void ProgramInfo()
+{
+    std::cout << "================================================================================================\n";
+    std::cout << "To simulate BlackJack rounds you need to use this command\n";
+    std::cout << '\n';
+    std::cout << "Command: ./program --sim [simulations] [balance] [min_bet] [max_bet] ( --csv [file_name] )\n";
+    std::cout << '\n';
+    std::cout << "When the program finnishes it will output a log file 'bj_simulation.log';\n";
+    std::cout << "The log file will contain: rounds_stats, min_balance, max_balance, rounds_played, balance;\n";
+    std::cout << "In the console you'll find the min_balance, max_balance, rounds_played, balance;\n";
+    std::cout << '\n';
+    std::cout << "Optionaly you can tell the program to create a csv file with a said file_name\n";
+    std::cout << '\n';
+    std::cout << "The simulation is using the basic cheet sheet table of BlackJack\n";
+    std::cout << '\n';
+    std::cout << "By ZipiRo\n";
+    std::cout << "================================================================================================\n";
+
 }
 
 int main(int argc, char* argv[])
@@ -414,8 +457,19 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    if(strstr(argv[1], "--sim") && argc == 6)
+    if(strstr(argv[1], "--sim") && argc >= 6)
     {
+        if(argc >= 8 && strstr(argv[6], "--csv"))
+        {    
+            use_CSV_file = true;
+            CreateCSVFile(argv[7]);      
+        }
+        else if(argc >= 7)
+        {
+            ProgramInfo();
+            return 1;
+        } 
+
         int simulations = std::stoi(argv[2]);
         int balance = std::stoi(argv[3]);
         int min_bet = std::stoi(argv[4]);
@@ -427,20 +481,7 @@ int main(int argc, char* argv[])
     }
     else 
     {
-        std::cout << "================================================================================================\n";
-        std::cout << "To simulate BlackJack rounds you need to use this command\n";
-        std::cout << '\n';
-        std::cout << "Command: ./program --sim [simulations] [balance] [min_bet] [max_bet]\n";
-        std::cout << '\n';
-        std::cout << "When the program finnishes it will output a log file 'bj_simulation.log';\n";
-        std::cout << "The log file will contain: rounds_stats, min_balance, max_balance, rounds_played, balance;\n";
-        std::cout << "In the console you'll find the min_balance, max_balance, rounds_played, balance;\n";
-        std::cout << '\n';
-        std::cout << "The simulation is using the basic cheet sheet table of BlackJack\n";
-        std::cout << '\n';
-        std::cout << "By ZipiRo\n";
-        std::cout << "================================================================================================\n";
-
+        ProgramInfo();
         return 1;
     }
 }
